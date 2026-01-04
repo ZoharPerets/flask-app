@@ -1,0 +1,84 @@
+# ערכים דינאמיים - Jenkins ישנה את אלה
+image:
+  repository: 872444258103.dkr.ecr.us-east-1.amazonaws.com/pyapp
+  tag: "v1"  # ישתנה דינאמית על ידי Jenkins
+  pullPolicy: Always
+
+# מספר replicas - דינאמי
+replicaCount: 2
+
+namespace: default
+
+# Anti-affinity - פריסה על 2 workers שונים
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/name
+          operator: In
+          values:
+          - pyapp
+      topologyKey: kubernetes.io/hostname
+
+# Rolling Update Strategy
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Service - ClusterIP
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5000
+
+# Ingress - ALB
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+  hosts:
+    - host: ""  # ALB ייצר hostname אוטומטי
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Resources
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /
+    port: 5000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: 5000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Environment variables
+env:
+  - name: FLASK_ENV
+    value: "production"
+  - name: PORT
+    value: "5000"
